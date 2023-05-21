@@ -16,6 +16,7 @@ services:
       - "17482:8000"
     environment:
       - TZ=Asia/Shanghai
+      - CONFIG_FILE=config.json
     volumes:
       - .:/app
     working_dir: "/app"
