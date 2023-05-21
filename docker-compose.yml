@@ -1,0 +1,23 @@
+version: "3"
+
+services:
+  about:
+    build:
+      dockerfile: Dockerfile
+    image: dingtalk-robot:latest
+    container_name: dingtalk-robot
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "ps | grep -v grep | grep python"]
+      interval: 45s
+      timeout: 3s
+      retries: 3
+    ports:
+      - "17482:8000"
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - .:/app
+    working_dir: "/app"
+    entrypoint: ["python3"]
+    command: ["main.py"]
