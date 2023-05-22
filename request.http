@@ -1,4 +1,4 @@
-POST http://localhost:8000/api/chat/gpt-4
+POST http://localhost:8000/api/chat/gpt-3
 Content-Type: application/json
 Token: test_token
 
@@ -7,6 +7,6 @@ Token: test_token
   "text": {
     "content": "测试"
   },
-  "sessionWebhook": null,
+  "sessionWebhook": "https://baidu.com",
   "msgId": "test_msg_id"
 }

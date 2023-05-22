@@ -1,34 +1,36 @@
 import os
 from functools import partial
 from json import dumps
+from typing import Annotated
 
-from flask import Flask, request, jsonify
+import uvicorn
+from fastapi import FastAPI, Header
+from fastapi.middleware.cors import CORSMiddleware
 
 from chatbot import from_bot_map_config
 from util import load_config, logger
 
 dumps = partial(dumps, ensure_ascii=False, separators=(',', ':'))
 
-app = Flask(__name__)
+app = FastAPI()
+app.add_middleware(CORSMiddleware)
 
 config = load_config(os.environ['CONFIG_FILE'])
 bot_map = from_bot_map_config(config['bot_map'])
 token_list: list = config['token_list']
 
 
-@app.route('/api/chat/<bot>', methods=['POST'])
-def chat_api(bot: str):
-    token: str = request.headers['Token']
+@app.post('/api/chat/{bot}')
+async def chat_api(bot: str, body: dict, token: Annotated[str | None, Header()]):
     assert token in token_list
-    body: dict = request.get_json()
     logger.debug(dumps(body))
     json_response = bot_map[bot].process(body)
     logger.debug(dumps(json_response))
-    return jsonify({})
+    return {}
 
 
 def main():
-    app.run(host='0.0.0.0', port=8000)
+    uvicorn.run(app, host='0.0.0.0', port=8000)
 
 
 if __name__ == '__main__':
