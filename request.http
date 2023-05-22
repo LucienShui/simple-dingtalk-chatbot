@@ -1,0 +1,12 @@
+POST http://localhost:8000/api/chat/gpt-4
+Content-Type: application/json
+Token: test_token
+
+{
+  "senderId": "test_sender_id",
+  "text": {
+    "content": "测试"
+  },
+  "sessionWebhook": null,
+  "msgId": "test_msg_id"
+}

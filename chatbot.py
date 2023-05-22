@@ -1,10 +1,18 @@
 from requests.api import post
-from json import load
+import time
 from urllib.parse import urljoin
 from typing import Dict
+from util import logger
+from json import dumps
+from functools import partial
+
+dumps = partial(dumps, separators=(',', ':'), ensure_ascii=False)
 
 
 class ChatBotBase:
+    def __init__(self):
+        self.logger = logger.getChild(self.__class__.__name__)
+
     def chat(self, query: str, history: list = None, system: str = None) -> str:
         raise NotImplementedError
 
@@ -32,13 +40,15 @@ class ChatBotBase:
 
 
 class ChatGPT(ChatBotBase):
-    def __init__(self, api_key: str, endpoint: str = 'https://api.openai-proxy.com', model: str = "gpt-3.5-turbo"):
+    def __init__(self, api_key: str, endpoint: str = 'https://api.openai-proxy.com',
+                 model: str = "gpt-3.5-turbo", organization: str = None):
+        super().__init__()
         self.model_list: list = ["gpt-4-0314", "gpt-4", "gpt-3.5-turbo-0301", "gpt-3.5-turbo"]
         assert model in self.model_list
         self.api_key: str = api_key
         self.url: str = urljoin(endpoint, '/v1/chat/completions')
         self.model: str = model
-        self.headers = {'Authorization': f'Bearer {self.api_key}'}
+        self.headers = {'Authorization': f'Bearer {self.api_key}', 'OpenAI-Organization': organization}
 
     def chat(self, query: str, history: list = None, system: str = None) -> str:
         history = history or []
@@ -47,7 +57,12 @@ class ChatGPT(ChatBotBase):
             messages.append({"role": "user", "content": q})
             messages.append({"role": "assistant", "content": a})
         messages.append({"role": "user", "content": query})
-        response = post(self.url, json={"model": self.model, "messages": messages}, headers=self.headers).json()
+        request: dict = {"model": self.model, "messages": messages}
+        start_time = time.time()
+        response: dict = post(self.url, json=request, headers=self.headers).json()
+        duration = time.time() - start_time
+        log_msg = f"request = {dumps(request)}, response = {dumps(response)}, cost = {round(duration * 1000, 2)} ms"
+        self.logger.info(log_msg)
         message: str = response['choices'].pop(0)['message']['content']
         return message
 

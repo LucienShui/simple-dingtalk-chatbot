@@ -1,4 +1,3 @@
-import logging
 import os
 from functools import partial
 from json import dumps
@@ -6,15 +5,11 @@ from json import dumps
 from flask import Flask, request, jsonify
 
 from chatbot import from_bot_map_config
-from util import load_config
+from util import load_config, logger
 
 dumps = partial(dumps, ensure_ascii=False, separators=(',', ':'))
 
 app = Flask(__name__)
-
-logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s:%(name)s:%(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
-logger: logging.Logger = logging.getLogger('robot')
 
 config = load_config(os.environ['CONFIG_FILE'])
 bot_map = from_bot_map_config(config['bot_map'])
