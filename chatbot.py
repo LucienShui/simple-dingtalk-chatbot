@@ -67,11 +67,31 @@ class ChatGPT(ChatBotBase):
         return message
 
 
+class ChatRemote(ChatBotBase):
+    def __init__(self, url: str, preset_history: list = None):
+        super().__init__()
+        self.url = url
+        self.preset_history = preset_history or []
+
+    def chat(self, query: str, history: list = None, system: str = None) -> str:
+        history = self.preset_history + (history or [])
+        request: dict = {"query": query, "history": history, "system": system}
+        start_time = time.time()
+        response: dict = post(self.url, json=request).json()
+        duration = time.time() - start_time
+        log_msg = f"request = {dumps(request)}, response = {dumps(response)}, cost = {round(duration * 1000, 2)} ms"
+        self.logger.info(log_msg)
+        message: str = response['response']
+        return message
+
+
 def from_config(bot_class: str, config: dict) -> ChatBotBase:
-    supported_class = ['chatgpt']
+    supported_class = ['ChatGPT', 'ChatRemote']
     assert bot_class in supported_class
-    if bot_class in 'chatgpt':
+    if bot_class == 'ChatGPT':
         return ChatGPT(**config)
+    if bot_class == 'ChatRemote':
+        return ChatRemote(**config)
 
 
 def from_bot_map_config(bot_map_config: Dict[str, dict]) -> Dict[str, ChatBotBase]:
