@@ -68,7 +68,10 @@ class ChatGPT(ChatBotBase):
         duration = time.time() - start_time
         log_msg = f"request = {dumps(request)}, response = {dumps(response)}, cost = {round(duration * 1000, 2)} ms"
         self.logger.info(log_msg)
-        message: str = response['choices'].pop(0)['message']['content']
+        if 'error' in response:
+            message: str = f"Error: {response['error']['message']}"
+        else:
+            message: str = response['choices'].pop(0)['message']['content']
         return message
 
 
