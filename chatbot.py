@@ -22,10 +22,15 @@ class ChatBotBase:
         session_webhook: str = body['sessionWebhook']
         message_id: str = body['msgId']
 
+        try:
+            response: str = self.chat(content)
+        except Exception as e:
+            response: str = f'Exception: {e.__class__.__name__}({str(e)})'
+
         json_response = {
             "msgtype": "text",
             "text": {
-                "content": self.chat(content)
+                "content": response
             },
             "originalMsgId": message_id,
             "at": {
@@ -62,7 +67,10 @@ class ChatGPTBase(ChatBotBase):
         duration = time.time() - start_time
         log_msg = f"request = {dumps(request)}, response = {dumps(response)}, cost = {round(duration * 1000, 2)} ms"
         self.logger.info(log_msg)
-        message: str = response['choices'].pop(0)['message']['content']
+        if 'error' in response:
+            message: str = f"Error: {response['error']['message']}"
+        else:
+            message: str = response['choices'].pop(0)['message']['content']
         return message
 
 
