@@ -1,10 +1,15 @@
+from http.client import HTTPException
+
 from requests.api import post
+from requests.models import Response
 import time
 from urllib.parse import urljoin
 from typing import Dict, List, Any
 from util import logger
 from json import dumps
 from functools import partial
+import openai
+from openai.openai_object import OpenAIObject
 
 dumps = partial(dumps, separators=(',', ':'), ensure_ascii=False)
 
@@ -54,23 +59,32 @@ class ChatGPTBase(ChatBotBase):
     def make_request(self, messages: List[Dict[str, str]]) -> Dict[str, Any]:
         raise NotImplementedError
 
-    def chat(self, query: str, history: list = None, system: str = None, parameters: dict = None) -> str:
+    @classmethod
+    def get_messages(cls, query: str, history: list = None, system: str = None) -> List[Dict[str, str]]:
         history = history or []
         messages: list = [{'role': 'system', 'content': system}] if system else []
         for q, a in history:
             messages.append({"role": "user", "content": q})
             messages.append({"role": "assistant", "content": a})
         messages.append({"role": "user", "content": query})
+        return messages
+
+    def chat(self, query: str, history: list = None, system: str = None, parameters: dict = None) -> str:
+        messages = self.get_messages(query, history, system)
         request: dict = self.make_request(messages)
         start_time = time.time()
-        response: dict = post(self.url, json=request, headers=self.headers).json()
+        raw_response: Response = post(self.url, json=request, headers=self.headers)
+        if raw_response.status_code != 200:
+            try:
+                response: dict = raw_response.json()
+            except Exception as _:
+                raise HTTPException(f'{raw_response.status_code}: {raw_response.reason}')
+            raise HTTPException(f"Error: {response['error']['message']}")
+        response: dict = raw_response.json()
         duration = time.time() - start_time
         log_msg = f"request = {dumps(request)}, response = {dumps(response)}, cost = {round(duration * 1000, 2)} ms"
         self.logger.info(log_msg)
-        if 'error' in response:
-            message: str = f"Error: {response['error']['message']}"
-        else:
-            message: str = response['choices'].pop(0)['message']['content']
+        message: str = response['choices'].pop(0)['message']['content']
         return message
 
 
@@ -84,6 +98,37 @@ class ChatGPT(ChatGPTBase):
 
     def make_request(self, messages: List[Dict[str, str]]) -> Dict[str, Any]:
         return {"model": self.model, "messages": messages}
+
+
+class SpecialChatGPT(ChatGPTBase):
+    def __init__(self, api_key: str, endpoint: str = 'https://api.openai-proxy.com',
+                 model: str = "gpt-3.5-turbo", organization: str = None):
+        assert model in ["gpt-4-0314", "gpt-4", "gpt-3.5-turbo-0301", "gpt-3.5-turbo"]
+        self.model: str = model
+        self.api_key: str = api_key
+        self.organization: str = organization
+        super().__init__(url=urljoin(endpoint, '/v1'), headers={})
+
+    def make_request(self, messages: List[Dict[str, str]]) -> Dict[str, Any]:
+        return {"model": self.model, "messages": messages}
+
+    def chat(self, query: str, history: list = None, system: str = None, parameters: dict = None) -> str:
+        messages = self.get_messages(query, history, system)
+        request: dict = self.make_request(messages)
+        start_time = time.time()
+        response = openai.ChatCompletion.create(
+            model=self.model, messages=messages, stream=True, api_base=self.url, api_key=self.api_key)
+        message = ''
+        chunk: OpenAIObject = OpenAIObject()
+        for chunk in response:
+            if chunk['choices'][0]['finish_reason'] is not None:
+                break
+            delta_content = chunk['choices'][0]['delta']['content']
+            message += delta_content
+        duration = time.time() - start_time
+        log_msg = f"request = {dumps(request)}, response = {dumps(chunk.to_dict())}, cost = {round(duration * 1000, 2)} ms"
+        self.logger.info(log_msg)
+        return message
 
 
 class AzureChatGPT(ChatGPTBase):
@@ -113,7 +158,7 @@ class ChatRemote(ChatBotBase):
 
 
 def from_config(bot_class: str, config: dict) -> ChatBotBase:
-    supported_class = ['ChatGPT', 'AzureChatGPT', 'ChatRemote']
+    supported_class = ['ChatGPT', 'AzureChatGPT', 'ChatRemote', 'SpecialChatGPT']
     assert bot_class in supported_class
     if bot_class == 'ChatGPT':
         return ChatGPT(**config)
@@ -121,6 +166,8 @@ def from_config(bot_class: str, config: dict) -> ChatBotBase:
         return AzureChatGPT(**config)
     if bot_class == 'ChatRemote':
         return ChatRemote(**config)
+    if bot_class == 'SpecialChatGPT':
+        return SpecialChatGPT(**config)
     raise ModuleNotFoundError(bot_class)
 
 
